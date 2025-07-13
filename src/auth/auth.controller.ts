@@ -5,13 +5,11 @@ import {
   Get,
   Request,
   UseGuards,
-  UnauthorizedException,
-  ConflictException,
+  UnauthorizedException
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 import {
@@ -20,14 +18,17 @@ import {
   ApiResponse,
   ApiBody,
   ApiOperation,
-  ApiSecurity,
+  ApiOkResponse
 } from '@nestjs/swagger';
+
+import { UserProfileResponseDto } from './dto/user-profile.dto';
 
 @ApiTags('Autenticación')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // 🟢 Registro de usuario
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
   @ApiBody({ type: RegisterDto })
@@ -37,6 +38,7 @@ export class AuthController {
     return this.authService.register(body);
   }
 
+  // 🔐 Login con generación de token
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesión y obtener token JWT' })
   @ApiBody({ type: LoginDto })
@@ -45,7 +47,7 @@ export class AuthController {
   async login(@Body() credentials: LoginDto) {
     const user = await this.authService.validateUser(
       credentials.email,
-      credentials.password,
+      credentials.password
     );
 
     if (!user) {
@@ -55,13 +57,39 @@ export class AuthController {
     return this.authService.login(user);
   }
 
+  // 👤 Perfil completo del usuario desde la base de datos
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Obtener datos del usuario autenticado' })
-  @ApiResponse({ status: 200, description: 'Datos del usuario autenticado' })
+  @ApiOperation({ summary: 'Obtener perfil completo desde MongoDB' })
+  @ApiOkResponse({
+    description: 'Perfil del usuario autenticado',
+    type: UserProfileResponseDto
+  })
   @ApiResponse({ status: 401, description: 'Token inválido o ausente' })
-  getProfile(@Request() req) {
-    return req.user;
+  async getProfile(@Request() req: { user: any; headers: any }) {
+    console.log('🔒 Encabezados recibidos:', req.headers);
+    console.log('🧩 Usuario inyectado por JwtStrategy:', req.user);
+
+    const { userId } = req.user;
+
+    if (!userId) {
+      console.error('⚠️ req.user está mal estructurado:', req.user);
+      throw new UnauthorizedException('Token válido, pero sin datos del usuario');
+    }
+
+    const usuario = await this.authService.getUserById(userId);
+
+    if (!usuario) {
+      throw new UnauthorizedException('Usuario no encontrado en la base de datos');
+    }
+
+    return {
+      userId: usuario._id,
+      email: usuario.email,
+      username: usuario.name,
+      // registradoDesde: usuario.createdAt,  // 👈 si tu esquema lo tiene
+      // roles: usuario.roles ?? []           // 👈 si estás guardando roles
+    };
   }
 }

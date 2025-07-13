@@ -10,43 +10,45 @@ dotenv.config();
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Configuración de seguridad con Helmet
+  // 🛡️ Seguridad con Helmet
   app.use(helmet());
 
-  // Configuración de CORS
+  // 🌐 CORS habilitado
   app.enableCors({
     origin: process.env.ALLOWED_ORIGINS || '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    credentials: true,
+    credentials: true
   });
 
-  // Validaciones globales para todos los DTOs
+  // ✅ Validación global con DTOs
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Elimina propiedades no decoradas
-      forbidNonWhitelisted: true, // Lanza error si hay propiedades no decoradas
-      transform: true, // Transforma los datos a los tipos definidos
-    }),
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true
+    })
   );
 
-  // Configuración avanzada para Swagger
+  // 📄 Swagger con autorización JWT
   const swaggerConfig = new DocumentBuilder()
     .setTitle('🧪 API Práctica NestJS')
-    .setDescription('Documentación interactiva con JWT, DTOs validados y agrupación por módulos')
+    .setDescription('Documentación interactiva con JWT y validación de DTOs')
     .setVersion('1.0.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        description: 'Ingrese su token JWT para acceder a rutas protegidas',
-      },
-      'access-token' // Nombre del esquema usado en @ApiBearerAuth()
-    )
+    .addSecurity('access-token', {
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'Ingrese su token JWT sin incluir "Bearer", Swagger lo agregará automáticamente'
+    })
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api', app, document);
+
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true // 👈 Mantiene el token al recargar Swagger
+    }
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }
